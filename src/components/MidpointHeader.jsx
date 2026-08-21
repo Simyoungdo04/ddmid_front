@@ -1,4 +1,4 @@
-import { MODE_LABELS } from '../constants'
+import { MODE_LABELS, ROUTE_COLORS } from '../constants'
 
 function MidpointHeader({
   pointCount,
@@ -115,11 +115,24 @@ function MidpointHeader({
       )}
       {!loading && !error && stage === 'result' && mode === 'transit' && station?.transitSummariesFromEach?.length > 0 && (
         <div style={{ marginTop: 4, display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {station.transitSummariesFromEach.map((summary, index) => (
-            <span key={index} style={{ fontSize: 12, color: '#666' }}>
-              {index + 1}번: {summary || '경로 정보 없음'}
-            </span>
-          ))}
+          {station.transitSummariesFromEach.map((summary, index) => {
+            const totalTime = station.timesFromEachMinutes[index]
+            const walkToStationTime = station.walkToStationTimesFromEachMinutes?.[index]
+            const walkFromStationTime = station.walkFromStationTimesFromEachMinutes?.[index]
+            return (
+              <span key={index} style={{ fontSize: 12, color: '#666' }}>
+                {index + 1}번:{' '}
+                {walkToStationTime > 0 && (
+                  <span style={{ color: ROUTE_COLORS.walk }}>도보 {walkToStationTime}분 → </span>
+                )}
+                {summary || '경로 정보 없음'}
+                {walkFromStationTime > 0 && (
+                  <span style={{ color: ROUTE_COLORS.walk }}> → 도보 {walkFromStationTime}분</span>
+                )}
+                {' '}· 총 {totalTime}분
+              </span>
+            )
+          })}
         </div>
       )}
     </header>

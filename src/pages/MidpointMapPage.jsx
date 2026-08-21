@@ -141,6 +141,40 @@ function MidpointMapPage() {
     updateStage('collecting')
   }
 
+  function addRoutePolyline(participantIndex, route, color, dash, opacity, weight) {
+    const path = route.map((p) => new window.kakao.maps.LatLng(p.lat, p.lng))
+    const polyline = new window.kakao.maps.Polyline({
+      map: mapRef.current,
+      path,
+      strokeWeight: weight,
+      strokeColor: color,
+      strokeOpacity: opacity,
+      strokeStyle: dash ? 'shortdash' : 'solid',
+    })
+    routePolylinesRef.current.push({ participantIndex, polyline, latLngs: path })
+  }
+
+  // 대중교통 모드에서는 참여자별 전체 대중교통 경로(보라색)를 그리고, 그 앞뒤로 "출발지 ->
+  // 타는 역"/"내리는 역 -> 중간지점" 도보 구간이 있으면 주황 점선으로 겹쳐 그려서 도보-대중교통-
+  // 도보 구성이 눈에 띄게 한다. 참여자가 역 바로 앞에서 출발/도착했으면 그 구간 자체가 없어서
+  // (walkToStation/walkFromStationRoutesFromEach가 빈 배열) 자연스럽게 안 그려진다. 도보 모드는
+  // 애초에 도보만 있으니 그대로 한 줄만 그린다.
+  function drawRoutesForOption(station, modeKey) {
+    ;(station.routesFromEach || []).forEach((route, participantIndex) => {
+      if (!route || route.length < 2) return
+      addRoutePolyline(participantIndex, route, ROUTE_COLORS[modeKey], modeKey === 'walk', 0.8, 4)
+    })
+
+    if (modeKey !== 'transit') return
+
+    ;[station.walkToStationRoutesFromEach, station.walkFromStationRoutesFromEach].forEach((walkRoutes) => {
+      ;(walkRoutes || []).forEach((route, participantIndex) => {
+        if (!route || route.length < 2) return
+        addRoutePolyline(participantIndex, route, ROUTE_COLORS.walk, true, 0.9, 4)
+      })
+    })
+  }
+
   // 선택된 모드(도보/대중교통)의 중간지점 마커 + 식당 마커들을 지도에 다시 그린다.
   function renderOption(option, modeKey) {
     removeLabeledMarker(stationMarkerRef)
@@ -153,19 +187,7 @@ function MidpointMapPage() {
     mapRef.current.panTo(stationLatLng)
 
     clearRoutePolylines()
-    ;(option.station.routesFromEach || []).forEach((route, participantIndex) => {
-      if (!route || route.length < 2) return
-      const path = route.map((p) => new window.kakao.maps.LatLng(p.lat, p.lng))
-      const polyline = new window.kakao.maps.Polyline({
-        map: mapRef.current,
-        path,
-        strokeWeight: 4,
-        strokeColor: ROUTE_COLORS[modeKey],
-        strokeOpacity: 0.8,
-        strokeStyle: modeKey === 'walk' ? 'shortdash' : 'solid',
-      })
-      routePolylinesRef.current.push({ participantIndex, polyline, latLngs: path })
-    })
+    drawRoutesForOption(option.station, modeKey)
     setFocusedParticipant(null)
 
     clearRestaurantMarkers()
