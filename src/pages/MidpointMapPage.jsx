@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { API_BASE_URL, KAKAO_JS_KEY, MODE_LABELS, POINT_COLOR, SEOUL_CITY_HALL } from '../constants'
+import { API_BASE_URL, KAKAO_JS_KEY, MODE_LABELS, POINT_COLOR, ROUTE_COLORS, SEOUL_CITY_HALL } from '../constants'
 import MidpointHeader from '../components/MidpointHeader'
 import RestaurantSidebar from '../components/RestaurantSidebar'
 import ReviewModal from '../components/ReviewModal'
@@ -13,6 +13,7 @@ function MidpointMapPage() {
   const pointsRef = useRef([]) // [{lat, lng}, ...]
   const pointMarkersRef = useRef([]) // [{marker, overlay}, ...]
   const stationMarkerRef = useRef(null)
+  const routePolylinesRef = useRef([]) // 참여자별 도보/대중교통 경로선
   const restaurantMarkersRef = useRef([])
   const nameSearchMarkersRef = useRef([])
   const stageRef = useRef('idle') // handleMapClick 안에서 최신 stage를 읽기 위한 ref (state는 클로저에 갇힘)
@@ -21,6 +22,7 @@ function MidpointMapPage() {
   const [pointCount, setPointCount] = useState(0) // 버튼 활성화 판단용, 실제 값은 pointsRef
   const [options, setOptions] = useState(null) // { walk: {station,restaurants}, transit: {station,restaurants} }
   const [mode, setMode] = useState('transit') // 'walk' | 'transit'
+  const [focusedParticipant, setFocusedParticipant] = useState(null) // null = 전체 보기, 0-based index면 그 사람만
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -87,6 +89,11 @@ function MidpointMapPage() {
     pointMarkersRef.current = []
   }
 
+  function clearRoutePolylines() {
+    routePolylinesRef.current.forEach(({ polyline }) => polyline.setMap(null))
+    routePolylinesRef.current = []
+  }
+
   function clearRestaurantMarkers() {
     restaurantMarkersRef.current.forEach((marker) => marker.setMap(null))
     restaurantMarkersRef.current = []
@@ -105,11 +112,13 @@ function MidpointMapPage() {
   function resetAll() {
     clearPointMarkers()
     removeLabeledMarker(stationMarkerRef)
+    clearRoutePolylines()
     clearRestaurantMarkers()
     clearNameSearchMarkers()
     pointsRef.current = []
     setPointCount(0)
     setOptions(null)
+    setFocusedParticipant(null)
     setError(null)
     updateStage('idle')
     setNameQuery('')
@@ -143,11 +152,28 @@ function MidpointMapPage() {
     )
     mapRef.current.panTo(stationLatLng)
 
+    clearRoutePolylines()
+    ;(option.station.routesFromEach || []).forEach((route, participantIndex) => {
+      if (!route || route.length < 2) return
+      const path = route.map((p) => new window.kakao.maps.LatLng(p.lat, p.lng))
+      const polyline = new window.kakao.maps.Polyline({
+        map: mapRef.current,
+        path,
+        strokeWeight: 4,
+        strokeColor: ROUTE_COLORS[modeKey],
+        strokeOpacity: 0.8,
+        strokeStyle: modeKey === 'walk' ? 'shortdash' : 'solid',
+      })
+      routePolylinesRef.current.push({ participantIndex, polyline, latLngs: path })
+    })
+    setFocusedParticipant(null)
+
     clearRestaurantMarkers()
     option.restaurants.forEach((restaurant) => {
       const marker = new window.kakao.maps.Marker({
         position: new window.kakao.maps.LatLng(restaurant.lat, restaurant.lng),
         map: mapRef.current,
+        clickable: true, // 없으면 마커 클릭이 지도 클릭으로도 같이 전달돼서 handleMapClick이 실행된다
       })
 
       const infoWindow = new window.kakao.maps.InfoWindow({
@@ -159,6 +185,29 @@ function MidpointMapPage() {
 
       restaurantMarkersRef.current.push(marker)
     })
+  }
+
+  // 특정 참여자의 경로만 남기고 나머지는 숨긴 뒤, 그 경로가 화면에 다 들어오도록 지도를 맞춘다.
+  function focusParticipant(participantIndex) {
+    setFocusedParticipant(participantIndex)
+    const bounds = new window.kakao.maps.LatLngBounds()
+    routePolylinesRef.current.forEach(({ participantIndex: idx, polyline, latLngs }) => {
+      const visible = idx === participantIndex
+      polyline.setMap(visible ? mapRef.current : null)
+      if (visible) latLngs.forEach((latlng) => bounds.extend(latlng))
+    })
+    if (!bounds.isEmpty()) {
+      mapRef.current.setBounds(bounds)
+    }
+  }
+
+  // 다시 전체 참여자의 경로를 함께 보여준다.
+  function showAllRoutes() {
+    setFocusedParticipant(null)
+    routePolylinesRef.current.forEach(({ polyline }) => polyline.setMap(mapRef.current))
+    if (stationMarkerRef.current) {
+      mapRef.current.panTo(stationMarkerRef.current.marker.getPosition())
+    }
   }
 
   function handleModeChange(newMode) {
@@ -186,23 +235,13 @@ function MidpointMapPage() {
     setNameSearchResults(null)
     setNameSearchError(null)
     try {
-      let data
-      if (points.length === 2) {
-        const [a, b] = points
-        const res = await fetch(
-          `${API_BASE_URL}/api/midpoint?ax=${a.lng}&ay=${a.lat}&bx=${b.lng}&by=${b.lat}`
-        )
-        data = await res.json()
-        if (!res.ok) throw new Error(data.error || `백엔드 요청 실패 (${res.status})`)
-      } else {
-        const res = await fetch(`${API_BASE_URL}/api/midpoint/multi`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(points.map((p) => ({ x: p.lng, y: p.lat }))),
-        })
-        data = await res.json()
-        if (!res.ok) throw new Error(data.error || `백엔드 요청 실패 (${res.status})`)
-      }
+      const res = await fetch(`${API_BASE_URL}/api/midpoint`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(points.map((p) => ({ x: p.lng, y: p.lat }))),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || `백엔드 요청 실패 (${res.status})`)
 
       const nextOptions = {
         walk: { station: data.walk.station, restaurants: sortByDistance(data.walk.restaurants) },
@@ -245,6 +284,7 @@ function MidpointMapPage() {
         const marker = new window.kakao.maps.Marker({
           position: new window.kakao.maps.LatLng(restaurant.lat, restaurant.lng),
           map: mapRef.current,
+          clickable: true, // 없으면 마커 클릭이 지도 클릭으로도 같이 전달돼서 handleMapClick이 실행된다
         })
 
         const infoWindow = new window.kakao.maps.InfoWindow({
@@ -282,6 +322,9 @@ function MidpointMapPage() {
         mode={mode}
         onModeChange={handleModeChange}
         activeOption={activeOption}
+        focusedParticipant={focusedParticipant}
+        onFocusParticipant={focusParticipant}
+        onShowAllRoutes={showAllRoutes}
       />
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         <div ref={mapContainerRef} style={{ flex: 1 }} />
