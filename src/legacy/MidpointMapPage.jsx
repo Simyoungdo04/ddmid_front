@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { API_BASE_URL, KAKAO_JS_KEY, MODE_LABELS, POINT_COLOR, ROUTE_COLORS, SEOUL_CITY_HALL } from '../constants'
-import MidpointHeader from '../components/MidpointHeader'
-import RestaurantSidebar from '../components/RestaurantSidebar'
+import MidpointHeader from './MidpointHeader'
+import RestaurantSidebar from './RestaurantSidebar'
 import ReviewModal from '../components/ReviewModal'
 
 function MidpointMapPage() {

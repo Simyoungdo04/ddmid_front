@@ -1,10 +1,14 @@
 import { Route, Routes } from 'react-router-dom'
-import MidpointMapPage from './pages/MidpointMapPage'
+import HomePage from './pages/HomePage'
+import MidpointMapPage from './legacy/MidpointMapPage'
+import RoomPage from './pages/RoomPage'
 
 function App() {
   return (
     <Routes>
-      <Route path="/" element={<MidpointMapPage />} />
+      <Route path="/" element={<HomePage />} />
+      <Route path="/multi" element={<MidpointMapPage />} />
+      <Route path="/room/:roomId" element={<RoomPage />} />
     </Routes>
   )
 }
