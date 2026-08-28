@@ -314,7 +314,27 @@ function MapPage() {
     (p) => p.chosenRestaurant,
   ).length;
   const allChosen = chosenCount === room.participants.length;
-  const allPins = [...(searchResults || []), ...(nearbyRestaurants || [])];
+
+  // 다른 참여자가 검색해서 선택한 식당은 내 검색 결과/추천 목록에는 안 뜨니, 여기서
+  // room.participants를 훑어서 따로 모아 보여준다 - 그래야 나도 같은 식당을 선택할 수 있다.
+  const shownIds = new Set(
+    [...(searchResults || []), ...(nearbyRestaurants || [])].map((r) => r.id),
+  );
+  const othersChosenRestaurants = [];
+  const seenChosenIds = new Set();
+  for (const p of room.participants) {
+    const r = p.chosenRestaurant;
+    if (r && !seenChosenIds.has(r.id)) {
+      seenChosenIds.add(r.id);
+      if (!shownIds.has(r.id)) othersChosenRestaurants.push(r);
+    }
+  }
+
+  const allPins = [
+    ...(searchResults || []),
+    ...(nearbyRestaurants || []),
+    ...othersChosenRestaurants,
+  ];
 
   const renderRestaurant = (restaurant) => (
     <RestaurantItem
@@ -367,6 +387,14 @@ function MapPage() {
               <SubText>검색 결과가 없습니다.</SubText>
             )}
             {searchResults.map(renderRestaurant)}
+          </ParticipantList>
+        </>
+      )}
+      {othersChosenRestaurants.length > 0 && (
+        <>
+          <SubText>다른 참여자가 선택한 식당</SubText>
+          <ParticipantList>
+            {othersChosenRestaurants.map(renderRestaurant)}
           </ParticipantList>
         </>
       )}
