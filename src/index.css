@@ -1,5 +1,40 @@
-html, body, #root {
+@import 'tailwindcss';
+
+@theme {
+  /* 브랜드 원색 */
+  --color-navy: #0C2D57;
+  --color-accent: #FC6736;
+  --color-pink: #FFB0B0;
+  --color-mist: #EFECEC;
+
+  /* 배경 - 분리 강도 3단계 */
+  --color-background: #FFFFFF;      /* 기본 페이지 배경 */
+  --color-surface: var(--color-mist); /* 카드 등 살짝 분리되는 영역 */
+  --color-background-deep: var(--color-navy); /* 헤더 등 확실히 분리되는 영역 */
+
+  /* 텍스트 */
+  --color-text: var(--color-navy);      /* 기본 텍스트 (밝은 배경 위) */
+  --color-text-muted: #6B7280;          /* 보조 텍스트 - 팔레트에 없어 임의 지정 */
+  --color-text-inverse: #FFFFFF;        /* background-deep 위 텍스트 */
+
+  /* 강조 */
+  --color-accent-soft: var(--color-pink); /* accent보다 약한 보조 강조 */
+
+  /* 상태 - 팔레트에 없어 임의 지정 */
+  --color-warning: #F5A524;
+  --color-success: #16A34A;
+  --color-danger: #DC2626;
+}
+
+html,
+body,
+#root {
   height: 100%;
   margin: 0;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, 'Segoe UI', Roboto, sans-serif;
 }

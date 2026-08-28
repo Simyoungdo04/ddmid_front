@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { KAKAO_JS_KEY, SEOUL_CITY_HALL } from '../constants'
+import { useRef, useState } from 'react'
+import { KAKAO_JS_KEY, SEOUL_CITY_HALL } from '../../constants'
+import { useKakaoMapsLoader } from '../../hooks/useKakaoMapsLoader'
+import { Input, Button } from '../common'
 
 // 지도를 클릭하거나 주소를 검색해서 좌표 하나를 고르는 용도. 방 만들기/입장 화면에서 재사용한다.
 // 검색은 우리 백엔드(카카오 로컬 검색 API)를 거치지 않고, 카카오맵 JS SDK의 주소 검색
@@ -17,36 +19,6 @@ function LocationPicker({ value, onChange, height = 300 }) {
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState(null)
 
-  useEffect(() => {
-    if (!KAKAO_JS_KEY) return
-
-    const script = document.createElement('script')
-    script.src = `//dapi.kakao.com/v2/maps/sdk.js?appkey=${KAKAO_JS_KEY}&libraries=services&autoload=false`
-    script.async = true
-    script.onload = () => {
-      window.kakao.maps.load(() => {
-        const map = new window.kakao.maps.Map(containerRef.current, {
-          center: new window.kakao.maps.LatLng(SEOUL_CITY_HALL.lat, SEOUL_CITY_HALL.lng),
-          level: 5,
-        })
-        mapRef.current = map
-        geocoderRef.current = new window.kakao.maps.services.Geocoder()
-        placesRef.current = new window.kakao.maps.services.Places()
-
-        window.kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
-          const latlng = mouseEvent.latLng
-          placeMarker(latlng)
-          onChangeRef.current({ lat: latlng.getLat(), lng: latlng.getLng() })
-        })
-      })
-    }
-    document.head.appendChild(script)
-
-    return () => {
-      document.head.removeChild(script)
-    }
-  }, [])
-
   function placeMarker(latlng) {
     if (markerRef.current) {
       markerRef.current.setPosition(latlng)
@@ -61,6 +33,26 @@ function LocationPicker({ value, onChange, height = 300 }) {
     placeMarker(latlng)
     onChangeRef.current({ lat, lng })
   }
+
+  useKakaoMapsLoader(
+    () => {
+      const map = new window.kakao.maps.Map(containerRef.current, {
+        center: new window.kakao.maps.LatLng(SEOUL_CITY_HALL.lat, SEOUL_CITY_HALL.lng),
+        level: 5,
+      })
+      mapRef.current = map
+      geocoderRef.current = new window.kakao.maps.services.Geocoder()
+      placesRef.current = new window.kakao.maps.services.Places()
+
+      window.kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
+        const latlng = mouseEvent.latLng
+        placeMarker(latlng)
+        onChangeRef.current({ lat: latlng.getLat(), lng: latlng.getLng() })
+      })
+    },
+    [],
+    { libraries: 'services' }
+  )
 
   function handleSearch() {
     const q = query.trim()
@@ -90,8 +82,8 @@ function LocationPicker({ value, onChange, height = 300 }) {
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-        <input
+      <div className="flex gap-1.5 mb-1.5">
+        <Input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -101,12 +93,14 @@ function LocationPicker({ value, onChange, height = 300 }) {
             }
           }}
           placeholder="주소/장소 검색"
-          style={{ flex: 1 }}
+          className="flex-1"
         />
-        <button type="button" onClick={handleSearch} disabled={searching}>검색</button>
+        <Button type="button" onClick={handleSearch} disabled={searching}>
+          검색
+        </Button>
       </div>
-      {searchError && <p style={{ fontSize: 13, color: '#dc2626', margin: '0 0 6px' }}>{searchError}</p>}
-      <div ref={containerRef} style={{ width: '100%', height }}>
+      {searchError && <p className="text-[13px] text-danger m-0 mb-1.5">{searchError}</p>}
+      <div ref={containerRef} className="w-full" style={{ height }}>
         {!KAKAO_JS_KEY && '지도를 불러오려면 VITE_KAKAO_JS_KEY 설정이 필요합니다.'}
       </div>
     </div>
